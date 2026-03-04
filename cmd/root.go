@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/ohader/gh-security/internal/checks"
 	"github.com/ohader/gh-security/internal/github"
@@ -177,6 +178,24 @@ func run(cmd *cobra.Command, args []string) error {
 		return repoResults[i].Name < repoResults[j].Name
 	})
 
+	// Aggregate used actions across all repos for org-level summary
+	orgActionsSeen := map[string]bool{}
+	var orgActions []string
+	for _, rr := range repoResults {
+		for _, action := range rr.UsedActions {
+			if !orgActionsSeen[action] {
+				orgActionsSeen[action] = true
+				orgActions = append(orgActions, action)
+			}
+		}
+	}
+	if len(orgActions) > 0 {
+		sort.Slice(orgActions, func(i, j int) bool {
+			return strings.ToLower(orgActions[i]) < strings.ToLower(orgActions[j])
+		})
+		orgFindings = append(orgFindings, checks.OrgUsedActionsNote(orgActions))
+	}
+
 	return printResults(title, orgFindings, repoResults)
 }
 
@@ -230,6 +249,8 @@ func scanRepo(client *github.Client, repo github.Repo) (report.RepoResult, error
 	if err != nil {
 		logf("Warning: could not list workflow files for %s: %v", repo.FullName, err)
 	} else {
+		repoActionsSeen := map[string]bool{}
+		var repoActions []string
 		for _, wf := range workflowFiles {
 			content, err := client.GetFileContent(repo.FullName, wf.Path)
 			if err != nil {
@@ -239,7 +260,19 @@ func scanRepo(client *github.Client, repo github.Repo) (report.RepoResult, error
 			rr.Findings = append(rr.Findings, checks.CheckWorkflowFilePermissions(wf.Name, content)...)
 			rr.Findings = append(rr.Findings, checks.CheckWorkflowTriggers(wf.Name, content)...)
 			rr.Findings = append(rr.Findings, checks.CheckWorkflowTokenExposure(wf.Name, content)...)
-			rr.Findings = append(rr.Findings, checks.CheckWorkflowUsedActions(wf.Name, content)...)
+			for _, action := range checks.CollectWorkflowUsedActions(content) {
+				if !repoActionsSeen[action] {
+					repoActionsSeen[action] = true
+					repoActions = append(repoActions, action)
+				}
+			}
+		}
+		if len(repoActions) > 0 {
+			sort.Slice(repoActions, func(i, j int) bool {
+				return strings.ToLower(repoActions[i]) < strings.ToLower(repoActions[j])
+			})
+			rr.UsedActions = repoActions
+			rr.Findings = append(rr.Findings, checks.RepoUsedActionsNote(repoActions))
 		}
 	}
 

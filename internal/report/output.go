@@ -10,9 +10,10 @@ import (
 
 // RepoResult holds all findings for a single repository.
 type RepoResult struct {
-	Name     string
-	Private  bool
-	Findings []checks.Finding
+	Name        string
+	Private     bool
+	Findings    []checks.Finding
+	UsedActions []string // deduplicated list for org aggregation
 }
 
 // ansi colour helpers

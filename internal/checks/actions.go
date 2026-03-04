@@ -257,14 +257,13 @@ func envValueExposesToken(v interface{}) bool {
 	return ok && strings.Contains(s, "secrets.GITHUB_TOKEN")
 }
 
-// CheckWorkflowUsedActions collects all `uses:` references from all steps across all jobs
-// and returns a single INFO finding listing them. Returns nil if no `uses:` entries are found.
-func CheckWorkflowUsedActions(filename string, content []byte) []Finding {
+// CollectWorkflowUsedActions returns all unique `uses:` references from a single workflow file.
+// Returns nil if none are found or the file cannot be parsed.
+func CollectWorkflowUsedActions(content []byte) []string {
 	var workflow workflowYAML
 	if err := yaml.Unmarshal(content, &workflow); err != nil {
 		return nil
 	}
-
 	var used []string
 	seen := map[string]bool{}
 	for _, job := range workflow.Jobs {
@@ -275,16 +274,25 @@ func CheckWorkflowUsedActions(filename string, content []byte) []Finding {
 			}
 		}
 	}
+	return used
+}
 
-	if len(used) == 0 {
-		return nil
-	}
-
-	return []Finding{{
+// RepoUsedActionsNote returns a single INFO finding listing all actions used in a repository.
+func RepoUsedActionsNote(actions []string) Finding {
+	return Finding{
 		Severity: SeverityInfo,
-		Check:    filename,
-		Message:  fmt.Sprintf("%s uses %s", filename, strings.Join(used, ", ")),
-	}}
+		Check:    "Used Actions",
+		Message:  fmt.Sprintf("Used actions: %s", strings.Join(actions, ", ")),
+	}
+}
+
+// OrgUsedActionsNote returns a single INFO finding listing all actions used across the org.
+func OrgUsedActionsNote(actions []string) Finding {
+	return Finding{
+		Severity: SeverityInfo,
+		Check:    "Organization Used Actions",
+		Message:  fmt.Sprintf("Used actions across all repositories: %s", strings.Join(actions, ", ")),
+	}
 }
 
 // permissionFindings evaluates a permissions value (string or map) and returns findings.
