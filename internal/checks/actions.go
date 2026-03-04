@@ -137,6 +137,7 @@ type workflowJob struct {
 
 type workflowStep struct {
 	Name string                 `yaml:"name"`
+	Uses string                 `yaml:"uses"`
 	Env  map[string]interface{} `yaml:"env"`
 }
 
@@ -254,6 +255,36 @@ func CheckWorkflowTokenExposure(filename string, content []byte) []Finding {
 func envValueExposesToken(v interface{}) bool {
 	s, ok := v.(string)
 	return ok && strings.Contains(s, "secrets.GITHUB_TOKEN")
+}
+
+// CheckWorkflowUsedActions collects all `uses:` references from all steps across all jobs
+// and returns a single INFO finding listing them. Returns nil if no `uses:` entries are found.
+func CheckWorkflowUsedActions(filename string, content []byte) []Finding {
+	var workflow workflowYAML
+	if err := yaml.Unmarshal(content, &workflow); err != nil {
+		return nil
+	}
+
+	var used []string
+	seen := map[string]bool{}
+	for _, job := range workflow.Jobs {
+		for _, step := range job.Steps {
+			if step.Uses != "" && !seen[step.Uses] {
+				seen[step.Uses] = true
+				used = append(used, step.Uses)
+			}
+		}
+	}
+
+	if len(used) == 0 {
+		return nil
+	}
+
+	return []Finding{{
+		Severity: SeverityInfo,
+		Check:    filename,
+		Message:  fmt.Sprintf("%s uses %s", filename, strings.Join(used, ", ")),
+	}}
 }
 
 // permissionFindings evaluates a permissions value (string or map) and returns findings.
