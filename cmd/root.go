@@ -205,7 +205,12 @@ func scanRepo(client *github.Client, repo github.Repo) (report.RepoResult, error
 	if !ok {
 		rr.Findings = append(rr.Findings, checks.InsufficientPermissions("Fork PR Approval"))
 	} else {
-		rr.Findings = append(rr.Findings, checks.CheckOrgForkPRApproval(forkPolicy))
+		f := checks.CheckOrgForkPRApproval(forkPolicy)
+		// Actions disabled → fork PR approval is moot; downgrade to INFO
+		if actionsOk && !enabled && f.Severity == checks.SeverityWarn {
+			f.Severity = checks.SeverityInfo
+		}
+		rr.Findings = append(rr.Findings, f)
 	}
 
 	// Repo workflow permissions
