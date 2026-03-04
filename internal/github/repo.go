@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 )
 
@@ -159,6 +160,22 @@ func (c *Client) ListWorkflowFiles(fullName string) ([]WorkflowFile, error) {
 		}
 	}
 	return yamlFiles, nil
+}
+
+// HasWikiPages reports whether the wiki for a public repository has at least one page.
+// GitHub redirects /wiki to the repo root when no pages exist; a 200 means pages exist.
+func (c *Client) HasWikiPages(fullName string) (bool, error) {
+	noRedirect := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := noRedirect.Get(fmt.Sprintf("https://github.com/%s/wiki", fullName))
+	if err != nil {
+		return false, err
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK, nil
 }
 
 // GetFileContent fetches a file from a repository and returns its decoded contents.

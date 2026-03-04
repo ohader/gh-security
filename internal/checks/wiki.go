@@ -16,6 +16,16 @@ func CheckWikiEnabled(hasWiki bool) Finding {
 	}
 }
 
+// WikiNoPagesNote returns an INFO finding noting that the wiki is enabled but has no pages,
+// so the wiki tab is hidden in the GitHub UI.
+func WikiNoPagesNote() Finding {
+	return Finding{
+		Severity: SeverityInfo,
+		Check:    "Wiki",
+		Message:  "Wiki is enabled but has no pages (tab hidden in UI) — consider disabling the wiki feature",
+	}
+}
+
 // WikiRestrictionNote returns an INFO finding noting that wiki restriction
 // cannot be checked via the API and must be verified manually.
 func WikiRestrictionNote() Finding {

@@ -283,9 +283,19 @@ func scanRepo(client *github.Client, repo github.Repo) (report.RepoResult, error
 
 	// Wiki — only relevant for public repositories
 	if !repo.Private {
-		rr.Findings = append(rr.Findings, checks.CheckWikiEnabled(repo.HasWiki))
 		if repo.HasWiki {
+			hasPages, err := client.HasWikiPages(repo.FullName)
+			if err != nil {
+				logf("Warning: could not check wiki pages for %s: %v", repo.FullName, err)
+				rr.Findings = append(rr.Findings, checks.CheckWikiEnabled(true))
+			} else if hasPages {
+				rr.Findings = append(rr.Findings, checks.CheckWikiEnabled(true))
+			} else {
+				rr.Findings = append(rr.Findings, checks.WikiNoPagesNote())
+			}
 			rr.Findings = append(rr.Findings, checks.WikiRestrictionNote())
+		} else {
+			rr.Findings = append(rr.Findings, checks.CheckWikiEnabled(false))
 		}
 	}
 
