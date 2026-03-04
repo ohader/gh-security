@@ -36,10 +36,10 @@ func InsufficientPermissions(check string) Finding {
 // CheckOrgForkPRApproval checks the fork PR contributor approval policy.
 //
 // Severity mapping:
-//   - "all_external_contributors"  → OK   (most restrictive)
-//   - "first_time_contributor"     → WARN (medium)
-//   - "new_to_github"              → ALERT (too permissive)
-//   - "not_required" / unknown     → ALERT (least restrictive)
+//   - "all_external_contributors"              → OK   (most restrictive)
+//   - "first_time_contributors"                → WARN (medium)
+//   - "first_time_contributors_new_to_github"  → ALERT (too permissive)
+//   - unknown                                  → ALERT
 func CheckOrgForkPRApproval(policy string) Finding {
 	switch policy {
 	case "all_external_contributors":
@@ -48,11 +48,11 @@ func CheckOrgForkPRApproval(policy string) Finding {
 			Check:    "Fork PR Approval",
 			Message:  `Fork PR Approval: "all_external_contributors" (compliant)`,
 		}
-	case "first_time_contributor":
+	case "first_time_contributors":
 		return Finding{
 			Severity: SeverityWarn,
 			Check:    "Fork PR Approval",
-			Message:  `Fork PR Approval: "first_time_contributor" — consider requiring approval for all external contributors`,
+			Message:  `Fork PR Approval: "first_time_contributors" — consider requiring approval for all external contributors`,
 		}
 	default:
 		return Finding{
