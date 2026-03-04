@@ -2,6 +2,7 @@ package checks
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -123,12 +124,20 @@ func CheckRepoWorkflowPermissions(perm string) Finding {
 // workflowYAML is used to unmarshal a GitHub Actions workflow file.
 type workflowYAML struct {
 	On          interface{}            `yaml:"on"`
+	Env         map[string]interface{} `yaml:"env"`
 	Permissions interface{}            `yaml:"permissions"`
 	Jobs        map[string]workflowJob `yaml:"jobs"`
 }
 
 type workflowJob struct {
-	Permissions interface{} `yaml:"permissions"`
+	Env         map[string]interface{} `yaml:"env"`
+	Permissions interface{}            `yaml:"permissions"`
+	Steps       []workflowStep         `yaml:"steps"`
+}
+
+type workflowStep struct {
+	Name string                 `yaml:"name"`
+	Env  map[string]interface{} `yaml:"env"`
 }
 
 // CheckWorkflowFilePermissions parses a workflow YAML and returns findings for
@@ -189,6 +198,62 @@ func hasPullRequestTarget(on interface{}) bool {
 		return ok
 	}
 	return false
+}
+
+// CheckWorkflowTokenExposure detects secrets.GITHUB_TOKEN being assigned to an env variable
+// at the workflow, job, or step level, which exposes the token to all subprocesses in that scope.
+func CheckWorkflowTokenExposure(filename string, content []byte) []Finding {
+	var workflow workflowYAML
+	if err := yaml.Unmarshal(content, &workflow); err != nil {
+		return nil
+	}
+
+	var findings []Finding
+
+	for k, v := range workflow.Env {
+		if envValueExposesToken(v) {
+			findings = append(findings, Finding{
+				Severity: SeverityAlert,
+				Check:    filename,
+				Message:  fmt.Sprintf("%s: secrets.GITHUB_TOKEN exposed as env variable %q at workflow level", filename, k),
+			})
+		}
+	}
+
+	for jobName, job := range workflow.Jobs {
+		for k, v := range job.Env {
+			if envValueExposesToken(v) {
+				findings = append(findings, Finding{
+					Severity: SeverityAlert,
+					Check:    filename,
+					Message:  fmt.Sprintf("%s: secrets.GITHUB_TOKEN exposed as env variable %q in job %q", filename, k, jobName),
+				})
+			}
+		}
+		for _, step := range job.Steps {
+			for k, v := range step.Env {
+				if envValueExposesToken(v) {
+					name := step.Name
+					if name == "" {
+						name = "(unnamed step)"
+					}
+					findings = append(findings, Finding{
+						Severity: SeverityAlert,
+						Check:    filename,
+						Message:  fmt.Sprintf("%s: secrets.GITHUB_TOKEN exposed as env variable %q in step %q of job %q", filename, k, name, jobName),
+					})
+				}
+			}
+		}
+	}
+
+	return findings
+}
+
+// envValueExposesToken reports whether a YAML env value references secrets.GITHUB_TOKEN.
+func envValueExposesToken(v interface{}) bool {
+	s, ok := v.(string)
+	return ok && strings.Contains(s, "secrets.GITHUB_TOKEN")
 }
 
 // permissionFindings evaluates a permissions value (string or map) and returns findings.

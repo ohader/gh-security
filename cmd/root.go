@@ -233,6 +233,7 @@ func scanRepo(client *github.Client, repo github.Repo) (report.RepoResult, error
 			}
 			rr.Findings = append(rr.Findings, checks.CheckWorkflowFilePermissions(wf.Name, content)...)
 			rr.Findings = append(rr.Findings, checks.CheckWorkflowTriggers(wf.Name, content)...)
+			rr.Findings = append(rr.Findings, checks.CheckWorkflowTokenExposure(wf.Name, content)...)
 		}
 	}
 
